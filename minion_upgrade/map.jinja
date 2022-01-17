@@ -1,0 +1,45 @@
+{% set os_family_map = salt['grains.filter_by']({
+      'Debian': {},
+      'RedHat': {},
+      'Windows': {},
+    },
+    grain="os_family")
+%}
+
+{% set install_settings = {
+    'salt': {
+        'version': {},
+        'paths': {},
+        'commands': {},
+    },
+}%}
+
+{# Merge os_family_map into the default settings #}
+{% do install_settings.salt.update(os_family_map) %}
+{% set saltconf = install_settings['salt'] %}
+
+{# Set versions #}
+{% set saltver = saltconf['version'] %}
+{% set latest = '3004' %}
+{% set saltver = latest %}
+
+{# Set file paths #}
+{% set salt_paths = saltconf['paths'] %}
+{%- if grains['os_family'].lower() == 'windows' %}
+    {% set installer = "Salt-Minion-" + saltver + "-2-Py3-AMD64.msi" %}
+    {% do salt_paths.update({'source_path': "salt://win/repo-ng/salt-minion/" + installer}) %}
+    {% do salt_paths.update({'dest_path': "C:\\Windows\\Temp\\" + installer}) %}
+{% else %}
+    {% do salt_paths.update({'source_path': 'salt://nix/salt-minion/bootstrap.sh'}) %}
+    {% do salt_paths.update({'dest_path': '/var/tmp/install_salt.sh'}) %}
+{% endif %}
+
+{# Install commands #}
+{% set salt_commands = saltconf['commands'] %}
+{% set master = grains['master'] %}
+{% set id = grains['id'] %}
+{%- if grains['os_family'].lower() == 'windows' %}
+    {% do salt_commands.update({'install': "cmd.exe /C C:\\Windows\\Temp\\" + installer + " /quiet /norestart MASTER=" + master + " MINION_ID=" + id + " MOVE_CONF=1"}) %}
+{% else %}
+    {% do salt_commands.update({'install': "sh /var/tmp/install_salt.sh -F -P -x python3 -A " + master + " -i " + id + " stable " + saltver}) %}
+{% endif %}
